@@ -8,10 +8,62 @@
 
 import { IDL } from '@icp-sdk/core/candid';
 
-export const idlService = IDL.Service({});
+export const PlayerState = IDL.Record({
+  'x' : IDL.Float64,
+  'y' : IDL.Float64,
+  'z' : IDL.Float64,
+  'id' : IDL.Text,
+  'rotation' : IDL.Float64,
+  'name' : IDL.Text,
+  'roomCode' : IDL.Text,
+  'lastSeen' : IDL.Int,
+});
+
+export const idlService = IDL.Service({
+  'createRoom' : IDL.Func([IDL.Text], [IDL.Text], []),
+  'getMyPlayer' : IDL.Func([], [IDL.Opt(PlayerState)], ['query']),
+  'getPlayersInRoom' : IDL.Func([IDL.Text], [IDL.Vec(PlayerState)], ['query']),
+  'joinRoom' : IDL.Func([IDL.Text, IDL.Text], [IDL.Bool], []),
+  'leaveRoom' : IDL.Func([], [], []),
+  'roomExists' : IDL.Func([IDL.Text], [IDL.Bool], ['query']),
+  'updatePosition' : IDL.Func(
+      [IDL.Float64, IDL.Float64, IDL.Float64, IDL.Float64],
+      [],
+      [],
+    ),
+});
 
 export const idlInitArgs = [];
 
-export const idlFactory = ({ IDL }) => { return IDL.Service({}); };
+export const idlFactory = ({ IDL }) => {
+  const PlayerState = IDL.Record({
+    'x' : IDL.Float64,
+    'y' : IDL.Float64,
+    'z' : IDL.Float64,
+    'id' : IDL.Text,
+    'rotation' : IDL.Float64,
+    'name' : IDL.Text,
+    'roomCode' : IDL.Text,
+    'lastSeen' : IDL.Int,
+  });
+  
+  return IDL.Service({
+    'createRoom' : IDL.Func([IDL.Text], [IDL.Text], []),
+    'getMyPlayer' : IDL.Func([], [IDL.Opt(PlayerState)], ['query']),
+    'getPlayersInRoom' : IDL.Func(
+        [IDL.Text],
+        [IDL.Vec(PlayerState)],
+        ['query'],
+      ),
+    'joinRoom' : IDL.Func([IDL.Text, IDL.Text], [IDL.Bool], []),
+    'leaveRoom' : IDL.Func([], [], []),
+    'roomExists' : IDL.Func([IDL.Text], [IDL.Bool], ['query']),
+    'updatePosition' : IDL.Func(
+        [IDL.Float64, IDL.Float64, IDL.Float64, IDL.Float64],
+        [],
+        [],
+      ),
+  });
+};
 
 export const init = ({ IDL }) => { return []; };

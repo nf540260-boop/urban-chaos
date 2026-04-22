@@ -1,0 +1,59 @@
+// Version: 3.0.0
+type Data__791452850<K, V> =
+  {var count : Nat__490723111; kvs : [var ?(K, V)]};
+type Internal__8484328<K, V> =
+  {children : [var ?Node__46230540<K, V>]; data : Data__791452850<K, V>};
+type Leaf__809889148<K, V> = {data : Data__791452850<K, V>};
+type Nat__490723111 = Nat__920180692;
+type Nat__920180692 = Nat;
+type Node__46230540<K, V> =
+  {#internal : Internal__8484328<K, V>; #leaf : Leaf__809889148<K, V>};
+type PlayerState__703694124 =
+  {
+    id : Text;
+    lastSeen : Int;
+    name : Text;
+    roomCode : Text;
+    rotation : Float;
+    x : Float;
+    y : Float;
+    z : Float
+  };
+type PlayerState__809798667 =
+  {
+    id : Text;
+    lastSeen : Int;
+    name : Text;
+    roomCode : Text;
+    rotation : Float;
+    x : Float;
+    y : Float;
+    z : Float
+  };
+type Room__420271871 = {code : Text; createdAt : Int};
+type Room__705158110 = {code : Text; createdAt : Int};
+actor ({
+  in var playerEntries : [(Text, PlayerState__703694124)];
+  stable players :
+    {
+      var root : Node__46230540<Text, PlayerState__809798667>;
+      var size : Nat__490723111
+    };
+  in var roomEntries : [(Text, Room__420271871)];
+  stable rooms :
+    {
+      var root : Node__46230540<Text, Room__705158110>;
+      var size : Nat__490723111
+    }
+}, {
+  stable players :
+    {
+      var root : Node__46230540<Text, PlayerState__809798667>;
+      var size : Nat__490723111
+    };
+  stable rooms :
+    {
+      var root : Node__46230540<Text, Room__705158110>;
+      var size : Nat__490723111
+    }
+}) ;

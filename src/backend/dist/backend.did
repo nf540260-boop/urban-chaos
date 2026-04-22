@@ -1,0 +1,21 @@
+type PlayerState = 
+ record {
+   id: text;
+   lastSeen: int;
+   name: text;
+   roomCode: text;
+   rotation: float64;
+   x: float64;
+   y: float64;
+   z: float64;
+ };
+service : {
+  createRoom: (playerName: text) -> (text);
+  getMyPlayer: () -> (opt PlayerState) query;
+  getPlayersInRoom: (roomCode: text) -> (vec PlayerState) query;
+  joinRoom: (roomCode: text, playerName: text) -> (bool);
+  leaveRoom: () -> ();
+  roomExists: (roomCode: text) -> (bool) query;
+  updatePosition: (x: float64, y: float64, z: float64, rotation: float64) ->
+   ();
+}

@@ -10,7 +10,25 @@ import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { IDL } from '@icp-sdk/core/candid';
 import type { Principal } from '@icp-sdk/core/principal';
 
-export interface _SERVICE {}
+export interface PlayerState {
+  'x' : number,
+  'y' : number,
+  'z' : number,
+  'id' : string,
+  'rotation' : number,
+  'name' : string,
+  'roomCode' : string,
+  'lastSeen' : bigint,
+}
+export interface _SERVICE {
+  'createRoom' : ActorMethod<[string], string>,
+  'getMyPlayer' : ActorMethod<[], [] | [PlayerState]>,
+  'getPlayersInRoom' : ActorMethod<[string], Array<PlayerState>>,
+  'joinRoom' : ActorMethod<[string, string], boolean>,
+  'leaveRoom' : ActorMethod<[], undefined>,
+  'roomExists' : ActorMethod<[string], boolean>,
+  'updatePosition' : ActorMethod<[number, number, number, number], undefined>,
+}
 export declare const idlService: IDL.ServiceClass;
 export declare const idlInitArgs: IDL.Type[];
 export declare const idlFactory: IDL.InterfaceFactory;

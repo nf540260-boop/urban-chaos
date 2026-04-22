@@ -89,10 +89,129 @@ export class ExternalBlob {
         return this;
     }
 }
-export interface backendInterface {
+export interface PlayerState {
+    x: number;
+    y: number;
+    z: number;
+    id: string;
+    rotation: number;
+    name: string;
+    roomCode: string;
+    lastSeen: bigint;
 }
+export interface backendInterface {
+    createRoom(playerName: string): Promise<string>;
+    getMyPlayer(): Promise<PlayerState | null>;
+    getPlayersInRoom(roomCode: string): Promise<Array<PlayerState>>;
+    joinRoom(roomCode: string, playerName: string): Promise<boolean>;
+    leaveRoom(): Promise<void>;
+    roomExists(roomCode: string): Promise<boolean>;
+    updatePosition(x: number, y: number, z: number, rotation: number): Promise<void>;
+}
+import type { PlayerState as _PlayerState } from "./declarations/backend.did.d.ts";
 export class Backend implements backendInterface {
     constructor(private actor: ActorSubclass<_SERVICE>, private _uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, private _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, private processError?: (error: unknown) => never){}
+    async createRoom(arg0: string): Promise<string> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.createRoom(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.createRoom(arg0);
+            return result;
+        }
+    }
+    async getMyPlayer(): Promise<PlayerState | null> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getMyPlayer();
+                return from_candid_opt_n1(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getMyPlayer();
+            return from_candid_opt_n1(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async getPlayersInRoom(arg0: string): Promise<Array<PlayerState>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getPlayersInRoom(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getPlayersInRoom(arg0);
+            return result;
+        }
+    }
+    async joinRoom(arg0: string, arg1: string): Promise<boolean> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.joinRoom(arg0, arg1);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.joinRoom(arg0, arg1);
+            return result;
+        }
+    }
+    async leaveRoom(): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.leaveRoom();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.leaveRoom();
+            return result;
+        }
+    }
+    async roomExists(arg0: string): Promise<boolean> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.roomExists(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.roomExists(arg0);
+            return result;
+        }
+    }
+    async updatePosition(arg0: number, arg1: number, arg2: number, arg3: number): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.updatePosition(arg0, arg1, arg2, arg3);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.updatePosition(arg0, arg1, arg2, arg3);
+            return result;
+        }
+    }
+}
+function from_candid_opt_n1(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_PlayerState]): PlayerState | null {
+    return value.length === 0 ? null : value[0];
 }
 export interface CreateActorOptions {
     agent?: Agent;

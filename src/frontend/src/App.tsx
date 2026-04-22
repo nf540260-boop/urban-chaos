@@ -2,8 +2,8 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
-import type { PlayerState } from "./backend.d";
 import { useActor } from "./hooks/useActor";
+import type { GameActor, PlayerState } from "./types/game";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface CarState {
@@ -950,6 +950,23 @@ const GANGS = [
   },
 ];
 
+// ── Missions Data ──────────────────────────────────────────────────────────
+const MISSIONS = [
+  { id: 0, title: "Steal a Car", desc: "Enter any vehicle", reward: "$500" },
+  {
+    id: 1,
+    title: "Rob the Bank",
+    desc: "Reach the Bank building",
+    reward: "$5,000",
+  },
+  {
+    id: 2,
+    title: "Gang Takedown",
+    desc: "Reach Grove Street territory",
+    reward: "$2,000",
+  },
+];
+
 // ── Bot Car ────────────────────────────────────────────────────────────────
 const BOT_STARTS = [
   { x: 30, z: 20 },
@@ -1304,50 +1321,29 @@ function CameraController({
 function PhysicsController({
   carRef,
   controlsRef,
-  joystickRef,
   inCar,
   playerPosRef,
 }: {
   carRef: React.MutableRefObject<CarState>;
   controlsRef: React.MutableRefObject<Controls>;
-  joystickRef: React.MutableRefObject<{ dx: number; dy: number }>;
   inCar: boolean;
   playerPosRef: React.MutableRefObject<{ x: number; z: number; angle: number }>;
 }) {
   useFrame((_, delta) => {
     const dt = Math.min(delta, 0.05);
     const ctrl = controlsRef.current;
-    const joy = joystickRef.current;
 
     if (inCar) {
       const state = carRef.current;
-      // Joystick controls car: dy < 0 = forward, dy > 0 = reverse; dx = steer
-      const joyActive = Math.abs(joy.dx) > 0.1 || Math.abs(joy.dy) > 0.1;
-      if (joyActive) {
-        const gas = -joy.dy; // positive = forward
-        if (gas > 0.1) state.speed = Math.min(state.speed + 8 * gas * dt, 20);
-        else if (gas < -0.1) {
-          if (state.speed > 0)
-            state.speed = Math.max(0, state.speed - 12 * Math.abs(gas) * dt);
-          else state.speed = Math.max(state.speed - 5 * dt, -8);
-        } else {
-          state.speed *= 0.97;
-          if (Math.abs(state.speed) < 0.05) state.speed = 0;
-        }
-        if (Math.abs(state.speed) > 0.5) {
-          const dir = state.speed > 0 ? 1 : -1;
-          state.angle -= joy.dx * 1.8 * dt * dir;
-        }
-      } else if (ctrl.gas) {
-        state.speed = Math.min(state.speed + 8 * dt, 20);
-      } else if (ctrl.brake) {
+      if (ctrl.gas) state.speed = Math.min(state.speed + 8 * dt, 20);
+      else if (ctrl.brake) {
         if (state.speed > 0) state.speed = Math.max(0, state.speed - 12 * dt);
         else state.speed = Math.max(state.speed - 5 * dt, -8);
       } else {
         state.speed *= 0.97;
         if (Math.abs(state.speed) < 0.05) state.speed = 0;
       }
-      if (!joyActive && Math.abs(state.speed) > 0.5) {
+      if (Math.abs(state.speed) > 0.5) {
         const dir = state.speed > 0 ? 1 : -1;
         if (ctrl.left) state.angle += 1.8 * dt * dir;
         if (ctrl.right) state.angle -= 1.8 * dt * dir;
@@ -1358,36 +1354,23 @@ function PhysicsController({
       state.z = Math.max(-98, Math.min(98, state.z));
       state.wheelRot += state.speed * dt;
     } else {
-      // On-foot movement — joystick takes priority over d-pad buttons
+      // On-foot movement
       const walkSpeed = 5;
       const player = playerPosRef.current;
-      const joyActive = Math.abs(joy.dx) > 0.1 || Math.abs(joy.dy) > 0.1;
-      const btnActive = ctrl.gas || ctrl.brake || ctrl.left || ctrl.right;
-      const moving = joyActive || btnActive;
+      const moving = ctrl.gas || ctrl.brake || ctrl.left || ctrl.right;
       if (moving) {
         let dx = 0;
         let dz = 0;
-        if (joyActive) {
-          // Joystick: dy < 0 = forward, dy > 0 = backward; dx = strafe/turn
-          const mag = Math.min(1, Math.sqrt(joy.dx * joy.dx + joy.dy * joy.dy));
-          // Turn based on horizontal input
-          player.angle -= joy.dx * 2.5 * dt;
-          // Move forward/backward based on vertical input
-          const fwd = -joy.dy * mag;
-          dx = Math.sin(player.angle) * fwd;
-          dz = Math.cos(player.angle) * fwd;
-        } else {
-          if (ctrl.gas) {
-            dx += Math.sin(player.angle);
-            dz += Math.cos(player.angle);
-          }
-          if (ctrl.brake) {
-            dx -= Math.sin(player.angle);
-            dz -= Math.cos(player.angle);
-          }
-          if (ctrl.left) player.angle += 2 * dt;
-          if (ctrl.right) player.angle -= 2 * dt;
+        if (ctrl.gas) {
+          dx += Math.sin(player.angle);
+          dz += Math.cos(player.angle);
         }
+        if (ctrl.brake) {
+          dx -= Math.sin(player.angle);
+          dz -= Math.cos(player.angle);
+        }
+        if (ctrl.left) player.angle += 2 * dt;
+        if (ctrl.right) player.angle -= 2 * dt;
         const len = Math.sqrt(dx * dx + dz * dz);
         if (len > 0) {
           player.x += (dx / len) * walkSpeed * dt;
@@ -1438,7 +1421,6 @@ function Sun() {
 function Scene({
   carRef,
   controlsRef,
-  joystickRef,
   inCar,
   cameraMode,
   playerPosRef,
@@ -1448,7 +1430,6 @@ function Scene({
 }: {
   carRef: React.MutableRefObject<CarState>;
   controlsRef: React.MutableRefObject<Controls>;
-  joystickRef: React.MutableRefObject<{ dx: number; dy: number }>;
   inCar: boolean;
   cameraMode: CameraMode;
   playerPosRef: React.MutableRefObject<{ x: number; z: number; angle: number }>;
@@ -1526,7 +1507,6 @@ function Scene({
       <PhysicsController
         carRef={carRef}
         controlsRef={controlsRef}
-        joystickRef={joystickRef}
         inCar={inCar}
         playerPosRef={playerPosRef}
       />
@@ -1640,126 +1620,98 @@ const btnBase: React.CSSProperties = {
 
 // ── Touch Controls ─────────────────────────────────────────────────────────
 function TouchControls({
-  joystickRef,
-}: {
-  joystickRef: React.MutableRefObject<{ dx: number; dy: number }>;
-}) {
+  controlsRef,
+}: { controlsRef: React.MutableRefObject<Controls> }) {
   const prevent = (e: React.PointerEvent) => e.preventDefault();
-
-  // Joystick state
-  const joystickActiveRef = useRef(false);
-  const joystickCenterRef = useRef({ x: 0, y: 0 });
-  const thumbRef = useRef<HTMLDivElement>(null);
-  const PAD_RADIUS = 55;
-
-  const onJoyStart = (e: React.PointerEvent<HTMLDivElement>) => {
-    prevent(e);
-    joystickActiveRef.current = true;
-    const rect = e.currentTarget.getBoundingClientRect();
-    joystickCenterRef.current = {
-      x: rect.left + rect.width / 2,
-      y: rect.top + rect.height / 2,
-    };
-    (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
-  };
-
-  const onJoyMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!joystickActiveRef.current) return;
-    const cx = joystickCenterRef.current.x;
-    const cy = joystickCenterRef.current.y;
-    let dx = e.clientX - cx;
-    let dy = e.clientY - cy;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist > PAD_RADIUS) {
-      dx = (dx / dist) * PAD_RADIUS;
-      dy = (dy / dist) * PAD_RADIUS;
-    }
-    joystickRef.current.dx = dx / PAD_RADIUS;
-    joystickRef.current.dy = dy / PAD_RADIUS;
-    if (thumbRef.current) {
-      thumbRef.current.style.transform = `translate(${dx}px, ${dy}px)`;
-    }
-  };
-
-  const onJoyEnd = () => {
-    joystickActiveRef.current = false;
-    joystickRef.current.dx = 0;
-    joystickRef.current.dy = 0;
-    if (thumbRef.current) {
-      thumbRef.current.style.transform = "translate(0px, 0px)";
-    }
-  };
-
   return (
     <>
-      {/* Virtual Joystick — bottom left */}
       <div
-        data-ocid="game.joystick.pad"
         style={{
           position: "absolute",
-          bottom: 40,
-          left: 30,
-          width: PAD_RADIUS * 2,
-          height: PAD_RADIUS * 2,
-          borderRadius: "50%",
-          background: "rgba(0,0,0,0.45)",
-          border: "2px solid rgba(100,180,255,0.5)",
-          backdropFilter: "blur(6px)",
-          touchAction: "none",
+          bottom: 130,
+          left: 20,
           display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
+          gap: 10,
         }}
-        onPointerDown={onJoyStart}
-        onPointerMove={onJoyMove}
-        onPointerUp={onJoyEnd}
-        onPointerCancel={onJoyEnd}
       >
-        {/* Crosshair guides */}
-        <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
-          <div
-            style={{
-              position: "absolute",
-              left: "50%",
-              top: 8,
-              bottom: 8,
-              width: 1,
-              background: "rgba(100,180,255,0.2)",
-              transform: "translateX(-50%)",
-            }}
-          />
-          <div
-            style={{
-              position: "absolute",
-              top: "50%",
-              left: 8,
-              right: 8,
-              height: 1,
-              background: "rgba(100,180,255,0.2)",
-              transform: "translateY(-50%)",
-            }}
-          />
-        </div>
-        {/* Thumb */}
         <div
-          ref={thumbRef}
-          data-ocid="game.joystick.thumb"
-          style={{
-            width: 44,
-            height: 44,
-            borderRadius: "50%",
-            background: "rgba(100,180,255,0.7)",
-            border: "2px solid rgba(255,255,255,0.8)",
-            boxShadow: "0 0 12px rgba(100,180,255,0.5)",
-            pointerEvents: "none",
-            transition: "transform 0.05s ease",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 18,
+          data-ocid="game.left.button"
+          style={{ ...btnBase, width: 66, height: 66, borderColor: "#4488cc" }}
+          onPointerDown={(e) => {
+            prevent(e);
+            controlsRef.current.left = true;
+          }}
+          onPointerUp={() => {
+            controlsRef.current.left = false;
+          }}
+          onPointerLeave={() => {
+            controlsRef.current.left = false;
           }}
         >
-          🕹
+          <span style={{ fontSize: 26 }}>◀</span>
+          <span>LEFT</span>
+        </div>
+        <div
+          data-ocid="game.right.button"
+          style={{ ...btnBase, width: 66, height: 66, borderColor: "#4488cc" }}
+          onPointerDown={(e) => {
+            prevent(e);
+            controlsRef.current.right = true;
+          }}
+          onPointerUp={() => {
+            controlsRef.current.right = false;
+          }}
+          onPointerLeave={() => {
+            controlsRef.current.right = false;
+          }}
+        >
+          <span style={{ fontSize: 26 }}>▶</span>
+          <span>RIGHT</span>
+        </div>
+      </div>
+      <div
+        style={{
+          position: "absolute",
+          bottom: 120,
+          right: 20,
+          display: "flex",
+          flexDirection: "column",
+          gap: 10,
+        }}
+      >
+        <div
+          data-ocid="game.brake.button"
+          style={{ ...btnBase, width: 76, height: 58, borderColor: "#cc3333" }}
+          onPointerDown={(e) => {
+            prevent(e);
+            controlsRef.current.brake = true;
+          }}
+          onPointerUp={() => {
+            controlsRef.current.brake = false;
+          }}
+          onPointerLeave={() => {
+            controlsRef.current.brake = false;
+          }}
+        >
+          <span style={{ fontSize: 20 }}>⬇</span>
+          <span>BRAKE</span>
+        </div>
+        <div
+          data-ocid="game.gas.button"
+          style={{ ...btnBase, width: 84, height: 76, borderColor: "#33cc66" }}
+          onPointerDown={(e) => {
+            prevent(e);
+            controlsRef.current.gas = true;
+          }}
+          onPointerUp={() => {
+            controlsRef.current.gas = false;
+          }}
+          onPointerLeave={() => {
+            controlsRef.current.gas = false;
+          }}
+        >
+          <span style={{ fontSize: 28 }}>⬆</span>
+          <span>GAS</span>
         </div>
       </div>
     </>
@@ -1781,18 +1733,17 @@ export default function App() {
     left: false,
     right: false,
   });
-  const joystickRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 });
   const playerPosRef = useRef({ x: 5, z: 5, angle: 0 });
 
   const [inCar, setInCar] = useState(false);
   const [carColor, setCarColor] = useState("#4488cc");
-  const cameraMode: CameraMode = "follow";
+  const [cameraMode, setCameraMode] = useState<CameraMode>("follow");
   const [nearestParkedIdx, setNearestParkedIdx] = useState<number | null>(null);
   const [canEnterCar, setCanEnterCar] = useState(false);
 
   // ── Multiplayer state ────────────────────────────────────────────────────
   const { actor: _rawActor } = useActor();
-  const actor = _rawActor as import("./backend.d").backendInterface | null;
+  const actor = _rawActor as unknown as GameActor | null;
   const [gameMode, setGameMode] = useState<"select" | "offline" | "online">(
     "select",
   );
@@ -1809,6 +1760,11 @@ export default function App() {
 
   // ── Gangs panel ──────────────────────────────────────────────────────────
   const [gangsOpen, setGangsOpen] = useState(false);
+
+  // ── Mission state ────────────────────────────────────────────────────────
+  const [activeMission, setActiveMission] = useState(0);
+  const [missionComplete, setMissionComplete] = useState(false);
+  const [missionReward, setMissionReward] = useState<string | null>(null);
 
   // Find nearest parked car from player position
   const findNearestCar = useCallback(() => {
@@ -1849,6 +1805,19 @@ export default function App() {
     const color = c.color ?? "#4488cc";
     setCarColor(color);
     setInCar(true);
+    // Mission 0: Steal a Car
+    setActiveMission((prev) => {
+      if (prev === 0) {
+        setMissionComplete(true);
+        setMissionReward("$500");
+        setTimeout(() => {
+          setMissionComplete(false);
+          setMissionReward(null);
+          setActiveMission(1);
+        }, 3000);
+      }
+      return prev;
+    });
   }, [canEnterCar, nearestParkedIdx]);
 
   const exitCar = useCallback(() => {
@@ -1987,6 +1956,12 @@ export default function App() {
       if (actor && roomCode) actor.leaveRoom().catch(() => {});
     };
   }, [lobbyVisible, roomCode, actor, inCar]);
+
+  const CAM_BUTTONS: { mode: CameraMode; icon: string; label: string }[] = [
+    { mode: "follow", icon: "🔄", label: "Follow" },
+    { mode: "front", icon: "👁️", label: "Front" },
+    { mode: "top", icon: "⬆", label: "Top" },
+  ];
 
   return (
     <div
@@ -2380,7 +2355,6 @@ export default function App() {
         <Scene
           carRef={carRef}
           controlsRef={controlsRef}
-          joystickRef={joystickRef}
           inCar={inCar}
           cameraMode={cameraMode}
           playerPosRef={playerPosRef}
@@ -2572,6 +2546,80 @@ export default function App() {
         </div>
       )}
 
+      {/* Mission HUD */}
+      {gameMode !== "select" && activeMission < MISSIONS.length && (
+        <div
+          data-ocid="mission.panel"
+          style={{
+            position: "absolute",
+            top: 16,
+            left: "50%",
+            transform: "translateX(-50%)",
+            background: "rgba(0,0,0,0.8)",
+            border: "1px solid rgba(255,200,0,0.35)",
+            borderRadius: 10,
+            padding: "10px 18px",
+            fontFamily: "monospace",
+            backdropFilter: "blur(6px)",
+            textAlign: "center",
+            minWidth: 220,
+            pointerEvents: "none",
+          }}
+        >
+          {missionComplete ? (
+            <div
+              data-ocid="mission.success_state"
+              style={{
+                color: "#00ff88",
+                fontSize: 16,
+                fontWeight: 700,
+                letterSpacing: 2,
+              }}
+            >
+              ✓ MISSION COMPLETE!
+              <br />
+              <span style={{ color: "#ffcc00" }}>{missionReward}</span>
+            </div>
+          ) : (
+            <>
+              <div
+                style={{
+                  fontSize: 10,
+                  color: "#888",
+                  letterSpacing: 2,
+                  marginBottom: 2,
+                }}
+              >
+                ACTIVE MISSION {activeMission + 1}/{MISSIONS.length}
+              </div>
+              <div
+                style={{
+                  fontSize: 14,
+                  fontWeight: 700,
+                  color: "#ffcc00",
+                  letterSpacing: 1,
+                }}
+              >
+                {MISSIONS[activeMission].title}
+              </div>
+              <div style={{ fontSize: 11, color: "#ccc", marginTop: 2 }}>
+                {MISSIONS[activeMission].desc}
+              </div>
+              <div
+                style={{
+                  fontSize: 12,
+                  color: "#00ff88",
+                  marginTop: 4,
+                  fontWeight: 700,
+                }}
+              >
+                Reward: {MISSIONS[activeMission].reward}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
       {/* Online players panel top-right */}
       <div
         data-ocid="game.online.panel"
@@ -2664,8 +2712,46 @@ export default function App() {
         </div>
       </div>
 
+      {/* Camera rotate buttons - right side */}
+      <div
+        style={{
+          position: "absolute",
+          right: 16,
+          top: "50%",
+          transform: "translateY(-50%)",
+          display: "flex",
+          flexDirection: "column",
+          gap: 8,
+        }}
+      >
+        {CAM_BUTTONS.map(({ mode, icon, label }) => (
+          <button
+            type="button"
+            key={mode}
+            data-ocid={`game.cam.${mode}.button`}
+            onClick={() => setCameraMode(mode)}
+            style={{
+              ...btnBase,
+              width: 56,
+              height: 56,
+              fontSize: 11,
+              borderColor:
+                cameraMode === mode ? "#ffcc00" : "rgba(100,180,255,0.3)",
+              background:
+                cameraMode === mode
+                  ? "rgba(255,200,0,0.25)"
+                  : "rgba(0,0,0,0.6)",
+              pointerEvents: "auto",
+            }}
+          >
+            <span style={{ fontSize: 18 }}>{icon}</span>
+            <span>{label}</span>
+          </button>
+        ))}
+      </div>
+
       {/* Enter car button */}
-      {!inCar && canEnterCar && (
+      {!inCar && (
         <div
           style={{
             position: "absolute",
@@ -2686,16 +2772,18 @@ export default function App() {
               ...btnBase,
               padding: "10px 32px",
               fontSize: 15,
-              borderColor: "#00ff88",
-              background: "rgba(0,255,136,0.2)",
-              color: "#00ff88",
+              borderColor: canEnterCar ? "#00ff88" : "rgba(255,255,255,0.15)",
+              background: canEnterCar
+                ? "rgba(0,255,136,0.2)"
+                : "rgba(0,0,0,0.55)",
+              color: canEnterCar ? "#00ff88" : "#666",
               pointerEvents: "auto",
               width: "auto",
               height: "auto",
               flexDirection: "row",
             }}
           >
-            🚗 ENTER CAR
+            🚗 {canEnterCar ? "ENTER CAR" : "Walk near a car…"}
           </button>
         </div>
       )}
@@ -2751,7 +2839,7 @@ export default function App() {
       )}
 
       {/* Touch Controls */}
-      <TouchControls joystickRef={joystickRef} />
+      <TouchControls controlsRef={controlsRef} />
 
       {/* Controls hint */}
       <div

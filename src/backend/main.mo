@@ -1,123 +1,123 @@
-import HashMap "mo:base/HashMap";
-import Text "mo:base/Text";
-import Time "mo:base/Time";
-import Array "mo:base/Array";
-import Iter "mo:base/Iter";
-import Principal "mo:base/Principal";
-import Nat32 "mo:base/Nat32";
-import Int "mo:base/Int";
+import Map "mo:core/Map";
+import Text "mo:core/Text";
+import Time "mo:core/Time";
+import Principal "mo:core/Principal";
+import Int "mo:core/Int";
+import Migration "migration";
 
-persistent actor {
+(with migration = Migration.run)
+actor {
   type PlayerState = {
-    id: Text;
-    name: Text;
-    x: Float;
-    y: Float;
-    z: Float;
-    rotation: Float;
-    roomCode: Text;
-    lastSeen: Int;
+    id : Text;
+    name : Text;
+    x : Float;
+    y : Float;
+    z : Float;
+    rotation : Float;
+    roomCode : Text;
+    lastSeen : Int;
   };
 
   type Room = {
-    code: Text;
-    createdAt: Int;
+    code : Text;
+    createdAt : Int;
   };
 
-  // Stable storage for upgrade persistence
-  var playerEntries : [(Text, PlayerState)] = [];
-  var roomEntries : [(Text, Room)] = [];
+  let players = Map.empty<Text, PlayerState>();
+  let rooms = Map.empty<Text, Room>();
 
-  // Runtime HashMaps (non-stable, rebuilt on upgrade)
-  transient var players = HashMap.fromIter<Text, PlayerState>(playerEntries.vals(), 16, Text.equal, Text.hash);
-  transient var rooms = HashMap.fromIter<Text, Room>(roomEntries.vals(), 8, Text.equal, Text.hash);
-
-  system func preupgrade() {
-    playerEntries := Iter.toArray(players.entries());
-    roomEntries := Iter.toArray(rooms.entries());
-  };
-
-  system func postupgrade() {
-    playerEntries := [];
-    roomEntries := [];
-  };
-
-  func makeRoomCode(seed: Nat32) : Text {
+  // Generate a 6-character room code from a Nat seed
+  func makeRoomCode(seed : Nat) : Text {
     let chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-    let charArr = Text.toArray(chars);
+    let charArr = chars.toArray();
     var code = "";
     var n = seed;
     var i : Nat = 0;
     while (i < 6) {
-      let idx = Nat32.toNat(n % 32);
+      let idx = n % 32;
       code := code # Text.fromChar(charArr[idx]);
-      n := n / 32 +% Nat32.fromNat(i * 7919);
+      n := (n / 32 + i * 7919) % 0x100000000;
       i += 1;
     };
-    code
+    code;
   };
 
-  public shared(msg) func createRoom(playerName: Text) : async Text {
-    let pid = Principal.toText(msg.caller);
-    let seed = Principal.hash(msg.caller) +% Nat32.fromNat(Int.abs(Time.now()) % 0xFFFFFFFF);
+  public shared (msg) func createRoom(playerName : Text) : async Text {
+    let pid = msg.caller.toText();
+    let seed = Int.abs(Time.now()) % 0xFFFFFFFF;
     let roomCode = makeRoomCode(seed);
-    rooms.put(roomCode, { code = roomCode; createdAt = Time.now() });
-    players.put(pid, {
-      id = pid; name = playerName;
-      x = 0.0; y = 0.0; z = 0.0; rotation = 0.0;
-      roomCode = roomCode; lastSeen = Time.now();
+    rooms.add(roomCode, { code = roomCode; createdAt = Time.now() });
+    players.add(pid, {
+      id = pid;
+      name = playerName;
+      x = 0.0;
+      y = 0.0;
+      z = 0.0;
+      rotation = 0.0;
+      roomCode = roomCode;
+      lastSeen = Time.now();
     });
-    roomCode
+    roomCode;
   };
 
-  public shared(msg) func joinRoom(roomCode: Text, playerName: Text) : async Bool {
-    let pid = Principal.toText(msg.caller);
+  public shared (msg) func joinRoom(roomCode : Text, playerName : Text) : async Bool {
+    let pid = msg.caller.toText();
     switch (rooms.get(roomCode)) {
       case null { false };
       case (?_) {
-        players.put(pid, {
-          id = pid; name = playerName;
-          x = 0.0; y = 0.0; z = 0.0; rotation = 0.0;
-          roomCode = roomCode; lastSeen = Time.now();
+        players.add(pid, {
+          id = pid;
+          name = playerName;
+          x = 0.0;
+          y = 0.0;
+          z = 0.0;
+          rotation = 0.0;
+          roomCode = roomCode;
+          lastSeen = Time.now();
         });
-        true
+        true;
       };
-    }
+    };
   };
 
-  public shared(msg) func updatePosition(x: Float, y: Float, z: Float, rotation: Float) : async () {
-    let pid = Principal.toText(msg.caller);
+  public shared (msg) func updatePosition(x : Float, y : Float, z : Float, rotation : Float) : async () {
+    let pid = msg.caller.toText();
     switch (players.get(pid)) {
       case null {};
       case (?p) {
-        players.put(pid, {
-          id = p.id; name = p.name;
-          x = x; y = y; z = z; rotation = rotation;
-          roomCode = p.roomCode; lastSeen = Time.now();
+        players.add(pid, {
+          p with
+          x = x;
+          y = y;
+          z = z;
+          rotation = rotation;
+          lastSeen = Time.now();
         });
       };
-    }
+    };
   };
 
-  public query func getPlayersInRoom(roomCode: Text) : async [PlayerState] {
+  public query func getPlayersInRoom(roomCode : Text) : async [PlayerState] {
     let cutoff = Time.now() - 15_000_000_000;
-    Array.filter<PlayerState>(Iter.toArray(players.vals()), func(p) {
-      p.roomCode == roomCode and p.lastSeen > cutoff
-    })
+    players.values()
+      .filter(func(p : PlayerState) : Bool {
+        p.roomCode == roomCode and p.lastSeen > cutoff
+      })
+      .toArray();
   };
 
-  public shared(msg) func leaveRoom() : async () {
-    players.delete(Principal.toText(msg.caller));
+  public shared (msg) func leaveRoom() : async () {
+    players.remove(msg.caller.toText());
   };
 
-  public shared query(msg) func getMyPlayer() : async ?PlayerState {
-    players.get(Principal.toText(msg.caller))
+  public shared query (msg) func getMyPlayer() : async ?PlayerState {
+    players.get(msg.caller.toText());
   };
 
-  public query func roomExists(roomCode: Text) : async Bool {
+  public query func roomExists(roomCode : Text) : async Bool {
     switch (rooms.get(roomCode)) {
       case null { false };
       case (?_) { true };
-    }
+    };
   };
-}
+};

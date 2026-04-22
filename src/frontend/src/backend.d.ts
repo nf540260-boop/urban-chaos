@@ -7,24 +7,22 @@ export interface None {
     __kind__: "None";
 }
 export type Option<T> = Some<T> | None;
-
 export interface PlayerState {
-    id: string;
-    name: string;
     x: number;
     y: number;
     z: number;
+    id: string;
     rotation: number;
+    name: string;
     roomCode: string;
     lastSeen: bigint;
 }
-
 export interface backendInterface {
     createRoom(playerName: string): Promise<string>;
+    getMyPlayer(): Promise<PlayerState | null>;
+    getPlayersInRoom(roomCode: string): Promise<Array<PlayerState>>;
     joinRoom(roomCode: string, playerName: string): Promise<boolean>;
-    updatePosition(x: number, y: number, z: number, rotation: number): Promise<void>;
-    getPlayersInRoom(roomCode: string): Promise<PlayerState[]>;
     leaveRoom(): Promise<void>;
-    getMyPlayer(): Promise<Option<PlayerState>>;
     roomExists(roomCode: string): Promise<boolean>;
+    updatePosition(x: number, y: number, z: number, rotation: number): Promise<void>;
 }
